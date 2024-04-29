@@ -1,4 +1,75 @@
 baseURL = 'https://feelingsonice.github.io/'
 languageCode = 'en-us'
-title = 'My New Hugo Site'
+title = 'Feelingsonice'
 theme = 'typo'
+googleAnalytics = "G-9TV0C3LHGL"
+
+# Disable tags
+disableKinds = ['taxonomy']
+
+
+[params]
+# Math mode
+theme = 'auto'
+
+# Intro on main page, content in markdown
+homeIntro = true
+homeIntroTitle = 'About Me'
+homeIntroContent = """
+I am a software engineer currently working on a project aimed at improving social engagements IRL.
+
+Not particularly into blogging but I guess I should leave something here.
+"""
+
+# Collection to display on home
+homeCollectionTitle = 'Posts'
+homeCollection = 'posts'
+
+# Pagination size across all website
+paginationSize = 20
+
+# Cutting off the page title to two chars for mobile (console-demo -> co)
+titleCutting = true
+
+# Set the animation style -- https://animate.style/
+# To disable animations, please remove or comment animationStyle parameter
+# animateStyle = "animated zoomIn fast"
+
+# Naivgation links
+# [[params.navlinks]]
+# name = "about/"
+# url = "about/"
+
+# [[params.navlinks]]
+# name = "posts/"
+# url = "posts/"
+
+# Social icons
+[[params.social]]
+name = "linkedin"
+url = "https://www.linkedin.com/in/bli00"
+
+[[params.social]]
+name = "github"
+url = "https://github.com/feelingsonice"
+
+[[params.social]]
+name = "leetcode"
+url = "https://leetcode.com/tomfran/"
+
+
+# Main menu pages
+[[params.menu]]
+name = "home"
+url = "/"
+
+[[params.menu]]
+name = "posts"
+url = "/posts"
+
+# Syntax highlight on code blocks, all styles:
+# https://xyproto.github.io/splash/docs/all.html
+# I suggest algol
+[markup]
+[markup.highlight]
+style = 'algol'
