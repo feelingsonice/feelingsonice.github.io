@@ -53,10 +53,6 @@ url = "https://www.linkedin.com/in/bli00"
 name = "github"
 url = "https://github.com/feelingsonice"
 
-[[params.social]]
-name = "leetcode"
-url = "https://leetcode.com/tomfran/"
-
 
 # Main menu pages
 [[params.menu]]
