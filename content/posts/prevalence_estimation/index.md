@@ -9,7 +9,7 @@ When I was at Snapchat, I worked on a team that was responsible for detecting an
 
 This was not a trivial problem because if we knew how many bad actors were active, it meant we had a way to detect them, and if we could detect them, we could've removed them to begin with... So we needed a way to take an "educated guess."
 
-During my tenur, I came across a [white paper](https://arxiv.org/abs/2211.03754) published by the manager of my team from a previous generation. The model was already in production but lacked maintenance and explanations (no one knew how it worked), hence I took a stab at dusting it off and documenting it.
+During my tenure, I came across a [white paper](https://arxiv.org/abs/2211.03754) published by the manager of my team from a previous generation. The model was already in production but lacked maintenance and explanations (no one knew how it worked), hence I took a stab at dusting it off and documenting it.
 
 This technique was interesting because it could be applied to many other problems, not just spam detection. For example, in ecology, you could use it to estimate the population of a species without counting every single individual (usually an impossible task).
 
