@@ -1,5 +1,5 @@
 +++
-title = 'Ink'
+title = 'Ink lotus'
 date = 2012-05-05
 summary = 'Innnnnk'
 +++
