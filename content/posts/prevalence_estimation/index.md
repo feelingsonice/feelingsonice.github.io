@@ -1,5 +1,5 @@
 +++
-title = 'Stochastic Model for Population Estimation on Social Platforms'
+title = 'A stochastic model for population estimation'
 date = '2022-07-01'
 readTime = 'true'
 math = 'true'
@@ -30,7 +30,7 @@ Where most offenders are reported once, some are reported twice, and so on. **Th
 
 ## Explanation
 
-Both **TPDAU** and **OPDA** are just the number of targets and offenders divided by the **DAU** for that particular day. Let's define the number of targets and offenders as $T$ and $O$ respectively, to keep the language consistent, then:
+Both **TPDAU** and **OPDAU** are just the number of targets and offenders divided by the **DAU** for that particular day. Let's define the number of targets and offenders as $T$ and $O$ respectively, to keep the language consistent, then:
 
 $$
 TPDAU = \frac{T}{DAU}

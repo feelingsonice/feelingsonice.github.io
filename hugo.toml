@@ -1,12 +1,12 @@
 baseURL = 'https://feelingsonice.github.io/'
 languageCode = 'en-us'
-title = 'Feelingsonice'
+title = 'feelingsonice'
 theme = 'typo'
 googleAnalytics = "G-9TV0C3LHGL"
 
 # Disable tags
 disableKinds = ['taxonomy']
-
+pluralizeListTitles = false
 
 [params]
 # Math mode
@@ -14,7 +14,7 @@ theme = 'auto'
 
 # Intro on main page, content in markdown
 homeIntro = true
-homeIntroTitle = 'About Me'
+homeIntroTitle = 'About me'
 homeIntroContent = """
 I am a software engineer currently working on a project aimed at improving social engagements IRL.
 
@@ -63,9 +63,13 @@ url = "/"
 name = "posts"
 url = "/posts"
 
+[[params.menu]]
+name = "art"
+url = "/art"
+
 # Syntax highlight on code blocks, all styles:
 # https://xyproto.github.io/splash/docs/all.html
 # I suggest algol
 [markup]
 [markup.highlight]
-style = 'algol'
+style = 'base16-snazzy'
