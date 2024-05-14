@@ -1,7 +1,6 @@
 +++
 title = 'On "What Shall We Do With Our Boys"'
 date = '2017-09-15'
-readTime = 'true'
 +++
 
 ![what_shall_we_do_with_our_boys](what_shall_we_do_with_our_boys.jpg)
