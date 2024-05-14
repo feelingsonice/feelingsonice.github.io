@@ -1,7 +1,6 @@
 +++
 title = 'A Stochastic Model for Population Estimation'
 date = '2022-07-01'
-readTime = 'true'
 math = 'true'
 +++
 
