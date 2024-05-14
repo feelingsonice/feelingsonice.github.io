@@ -1,5 +1,5 @@
 +++
-title = 'OTP PASETO Authentication with gRPC in Rust'
+title = 'OTP PASETO Auth with gRPC in Rust'
 date = '2024-05-13'
 +++
 
