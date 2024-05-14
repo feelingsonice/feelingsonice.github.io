@@ -31,7 +31,6 @@ edition = "2021"
 [dependencies]
 dotenv = "0.15"
 config = "0.14"
-thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.37", features = ["rt-multi-thread", "macros", "signal"] }
@@ -95,37 +94,24 @@ package auth;
 
 import "google/protobuf/empty.proto";
 
-// AuthService defines the gRPC service for handling authentication.
 service AuthService {
-    // RequestOTP is used to send a One Time Password (OTP) to a user's phone number.
     rpc RequestOTP(OTPRequest) returns (google.protobuf.Empty);
-    // VerifyOTP is used to verify the OTP sent to the user's phone.
     rpc VerifyOTP(VerifyOTPRequest) returns (TokenResponse);
-    // RefreshToken is used to refresh the access token with the refresh token.
     rpc RefreshToken(google.protobuf.Empty) returns (TokenResponse);
-    // Provide a valid access token in the Authorization header to logout the user.
     rpc Logout(google.protobuf.Empty) returns (google.protobuf.Empty);
 }
 
-// OTPRequest is the request message for requesting an OTP.
 message OTPRequest {
-    // The user's phone number to which the OTP will be sent.
     string phone_number = 1;
 }
 
-// VerifyOTPRequest is the request message for verifying an OTP.
 message VerifyOTPRequest {
-    // The user's phone number for which the OTP was requested.
     string phone_number = 1;
-    // The OTP that was sent to the user's phone number.
     string otp = 2;
 }
 
-// TokenResponse is the response message that includes the access token a refresh token.
 message TokenResponse {
-    // The new access token.
     string access_token = 1;
-    // The new refresh token.
     string refresh_token = 2;
 }
 ```
@@ -136,6 +122,8 @@ Here, we define a gRPC service called `AuthService` with four RPC methods:
 2. `VerifyOTP` - Used to verify the OTP sent to the user's phone.
 3. `RefreshToken` - Used to refresh the access token with the refresh token once the access token expires.
 4. `Logout` - Used to logout the user by invalidating the refresh token. Note, because we're not storing the refresh token in a database, we can't invalidate it. This endpoint is used to invalidate the refresh token, which is essentailly "better than nothing"...
+
+Both `RefreshToken` and `Logout` accepts `google.protobuf.Empty` as input because they'll be retreiving the `Bearer` auth tokens from the request headers (also called "Metadata" for gRPC).
 
 ### Generating the gRPC code
 
@@ -148,7 +136,7 @@ fn main() {
 }
 ```
 
-What's nice about tonic is that it generates the gRPC code at compile time for you, so you don't need to worry about running `protoc` manually. Infact, `tonic` does not use the `protoc` binary at all, so you don't need to have it installed on your system.
+What's nice about tonic is that it generates the gRPC code at compile time for you, so you don't need to worry about running `protoc` the CLI took manually. In fact, `tonic` does not use the `protoc` binary at all, so you don't need to have it installed on your system (although I still recommend it).
 
 To test it out, add the following snippet to your `main.rs`:
 
@@ -159,7 +147,7 @@ pub mod auth_pb {
 }
 ```
 
-Now when you run `cargo build`, you should see a warning for not using the imported module, but other than that, that's it!
+Now when you run `cargo build`, you should see a warning for not using the imported module, but other than that, we're good to go.
 
 ### Implementing the gRPC auth server
 
@@ -282,7 +270,7 @@ APP_LOGLEVEL=INFO
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_USER=dev
-POSTGRES_PASSWORD=dev_password123
+POSTGRES_PASSWORD=somepassword
 POSTGRES_DB=dev_db
 
 TWILIO_SERVICESID=<YOUR_TWILIO_SERVICESID>
@@ -296,7 +284,7 @@ PASETO_REFRESHEXPIRY=3h
 PASETO_ISSUER=grpc://<YOUR_DOMAIN>
 ```
 
-You can replace the contents inside of `<...>` with your own values for now. We'll need them down the road but don't worry about its correctness.
+We'll replace the contents inside of `<...>` down the road so don't worry about it for now.
 
 Now we can update our `main.rs` to read the settings from the environment and start the gRPC server:
 
@@ -402,12 +390,12 @@ We did a few things here:
 1. We read the some environment variables from the `.env` file using the call to `dotenv().ok()`. Then we used `config::Config::builder()` to read those environment values into our `Settings` struct.
 2. We also set up the logging level based on the `APP_LOGLEVEL` environment variable.
 3. We then created a `deadpool_postgres::Config` struct to create a connection pool to our PostgreSQL database.
-4. We then created an instance of our `AuthServerImpl` struct and passed it to the `AuthServiceServer::new` function to create a gRPC server. We then used `tonic::transport::Server::builder()` to create a new gRPC server and added some middleware to it.
+4. We then created an instance of our `AuthServerImpl` struct and passed it to the `AuthServiceServer::new` function to create a gRPC server. We then used `tonic::transport::Server::builder()` to create a new gRPC server and added some middleware to it. Along the way, we define a few built-in middleware to log the request and response headers and latency.
 5. We then called `serve_with_shutdown` to start the server and listen for the `SIGINT` and `SIGTERM` signals, which is definitely a overkill for now but it's good to have it in place.
 
 ### Building the docker image
 
-Now lets move on to building the docker image for our application. We'll be using `docker compose` to facilitate the the container running process. In production, you'll need to replace the contains inside of the `compose.yml` file your k8s deployment files and keep the secrets we defined in the `.env` file as k8s secrets. instead of an environment variable. How to do this is beyond the scope of this tutorial.
+Now lets move on to building the docker image for our application. We'll be using `docker compose` to facilitate the the container running process. In production, you'll need to replace the contents inside of the `compose.yml` file your k8s deployment files and keep the secrets we defined in the `.env` file as k8s secrets (instead of an environment variable).
 
 Firstly, lets create a `Dockerfile` in the root of our project:
 
@@ -441,7 +429,7 @@ COPY --from=builder /builder/target/release/grpc-paseto-server .
 ENTRYPOINT ["/app/grpc-paseto-server"]
 ```
 
-I like have extremely tiny Docker images, but to do that you'll need to use an `alpine` based image, which would require you to do **cross-compilation**, which is a bit more complex. So I'm using a `debian` based image here. This image turns out to be only about 100MB, but you can check out how to do cross-compilation with `alpine` based images [here](https://kerkour.com/rust-cross-compilation) if you want to go that route.
+I like to have extremely tiny Docker images, but to do that you'll need to use an `alpine` based images, which would require you to do cross-compilation, which is a bit more complex. So I'm using a `debian` based image here. This image turns out to be only about 100MB, but you can check out how to do cross-compilation with `alpine` based images [here](https://kerkour.com/rust-cross-compilation) if you want to go that route.
 
 Next, we'll create a `compose.yml` file in the root of our project:
 
@@ -516,15 +504,15 @@ CREATE TABLE
 CREATE INDEX user_phone_number_idx ON users (phone_number);
 ```
 
-Notice how the `user_id` gets a default value of `uuid_generate_v4()`. This is because in the OTP workflow, we'll be creating a new user and generating a new token for them, even if they don't exist in the database yet. You are then responsible for creating other endpoints that handles the creation of an user when they have a valid token but no user profile. A bit more convoluted, but leads to a nicer user experience.
+Notice how the `user_id` gets a default value of `uuid_generate_v4()`. This is because in the OTP workflow, we'll be creating a new user and generating a new token for them, even if they don't exist in the database yet! You are then responsible for creating other endpoints that handles the creation of an user when they have a valid token but no user profile. A bit more convoluted, but leads to a nicer user experience.
 
-The `users` table is something you can manipulate to your liking, I've just added a `name` and `phone_number` field to it. You can add more fields as you see fit.
+The `users` table is something you can manipulate to your liking, I've just added a few fields like `name` and `phone_number`, but you can add more fields as you see fit.
 
 Now the gRPC server should be setup, although none of the endpoints are implemented yet. We'll do that in the next section.
 
 ## Implementing the gRPC endpoints
 
-We previously stubbed out our auth methods with `unimplemented!()`. Now we'll implement them, but before we can do that, we need a Twilio client to call the Twilio Verify API. We'll create a `TwilioClient` struct that will handle the communication with the Twilio Verify API. I'm not going to cover setting up Twilio Verify here, but you can check out the [Twilio Verify API documentation](https://www.twilio.com/docs/verify/api) to get started.
+We previously stubbed out our auth methods with `unimplemented!()`. Now we'll implement them, but before we can do that, we need a Twilio client to call the Twilio Verify API. We'll create a `TwilioClient` struct that will handle the communication with the Twilio Verify API. I'm not going to cover setting up Twilio accounts here, but you can check out the [Twilio Verify API documentation](https://www.twilio.com/docs/verify/api) to get started.
 
 ### Setting up the Twilio client
 
@@ -641,8 +629,8 @@ pub mod auth_pb {
     tonic::include_proto!("auth");
 }
 
-use crate::cornucopia::queries::tokens;
-use crate::cornucopia::queries::users;
+use crate::cornucopia::queries::tokens; // we'll cover later
+use crate::cornucopia::queries::users; // we'll cover later
 use crate::vendors::{TwilioClient, VerifyChannel, VerifyResponse, VerifyStatus};
 use anyhow::Context;
 use auth_pb::auth_service_server::AuthService;
@@ -861,7 +849,7 @@ async fn verify_otp(
 
                 // Verified, generate a token pair
                 // Get user id by phone number if the user exists, else create one.
-                // User profile is responsible for creating the user if it does not exist.
+                // Other endpints are responsible for creating the user if it does not exist.
                 let user_id = users::get_user_id_by_phone_number()
                     .bind(
                         &self.postgres_pool.get().await.map_err(|e| {
@@ -1328,4 +1316,385 @@ fn main() -> Result<(), Error> {
 }
 ```
 
-The way this works is a little funky. It essentially does exactly what the CLI tool will do by spinning up a Postgres Docker container and running your `shema.sql` SQL against it. The generated Rust interfaces are then written to a `src/cornucopia.rs` file. For this to work, you obvious need to have docker installed, but you may also run into some issues with the Docker daemon not being accessible. If that happens, just run your own Postgres container and pass the connection string to the `cornucopia` CLI instead.
+The way this works is a little funky. It essentially does exactly what the CLI tool will do by spinning up a Postgres Docker container and running your SQL queries against it. The generated Rust interfaces are then written to a `src/cornucopia.rs` file. For this to work, you obvious need to have docker installed, but you may also run into some issues with the Docker daemon not being accessible. If that happens, just run your own Postgres container and pass the connection string to the `cornucopia` CLI instead.
+
+After this is done, you'll have a `src/cornucopia.rs` file that contains the generated Rust interfaces, but you still need to import them in `main.rs` with `mod cornucopia;`.
+
+## Access Token Verification
+
+To verify the access token, we'll need to create a gRPC interceptor that will intercept the request and verify the access token before it reaches the service handler. I'm adding it to the same `auth.rs` from before:
+
+```rust
+// src/grpc/auth.rs
+//
+// ... stuff we've already covered from previous sections
+
+pub mod interceptor {
+    use pasetors::{
+        claims::ClaimsValidationRules, keys::AsymmetricPublicKey, token::UntrustedToken, Public,
+    };
+    use pasetors::{public, version4::V4};
+    use tonic::transport::Body;
+    use tonic::Code;
+    use tonic::{async_trait, Status};
+    use tonic_middleware::RequestInterceptor;
+    use tonic_types::{ErrorDetails, StatusExt};
+
+    #[derive(Clone)]
+    pub struct AuthInterceptor {
+        pub token_issuer: String,
+        pub access_token_public_key: AsymmetricPublicKey<V4>,
+    }
+
+    #[async_trait]
+    impl RequestInterceptor for AuthInterceptor {
+        async fn intercept(
+            &self,
+            mut request: http::Request<Body>,
+        ) -> Result<http::Request<Body>, Status> {
+            match request.headers().get("authorization").map(|v| v.to_str()) {
+                Some(Ok(raw)) => {
+                    let token_str = raw.strip_prefix("Bearer ").ok_or(Status::invalid_argument(
+                        "Authorization header missing 'Bearer ' prefix",
+                    ))?;
+
+                    let untrusted_token = UntrustedToken::<Public, V4>::try_from(token_str)
+                        .map_err(|e| {
+                            Status::invalid_argument(format!("Invalid token encoding: {}", e))
+                        })?;
+
+                    let mut validation_rules = ClaimsValidationRules::new();
+                    validation_rules.validate_issuer_with(&self.token_issuer);
+                    validation_rules.validate_audience_with(&super::get_remote_addr(&request));
+
+                    match public::verify(
+                        &self.access_token_public_key,
+                        &untrusted_token,
+                        &validation_rules,
+                        None,
+                        Some(super::IMPLICT_ASSERTION),
+                    ) {
+                        Ok(trusted_token) => {
+                            let payload_claims = trusted_token
+                                .payload_claims()
+                                .ok_or(Status::invalid_argument("Payload not found"))?
+                                .to_owned();
+                            request.extensions_mut().insert(payload_claims);
+                            Ok(request)
+                        }
+                        Err(err) => match err {
+                            pasetors::errors::Error::ClaimValidation => {
+                                return Err(Status::with_error_details(
+                                    Code::Unauthenticated,
+                                    "Invalid access token",
+                                    ErrorDetails::with_error_info(
+                                        "ACCESS_TOKEN_CLAIM_VALIDATION_FAILURE",
+                                        "AUTHENTICATION",
+                                        [(
+                                            "help".to_owned(),
+                                            "Access token possibiliy expired".to_owned(),
+                                        )],
+                                    ),
+                                ));
+                            }
+                            _ => {
+                                tracing::warn!("Access token verification failed: {:?}", err);
+                                return Err(Status::with_error_details(
+                                    Code::Unauthenticated,
+                                    "Invalid access token",
+                                    ErrorDetails::with_error_info(
+                                        "ACCESS_TOKEN_VERIFICATION_FAILURE",
+                                        "AUTHENTICATION",
+                                        [],
+                                    ),
+                                ));
+                            }
+                        },
+                    }
+                }
+                _ => {
+                    return Err(Status::unauthenticated(
+                        "Invalid or missing authorization header",
+                    ))
+                }
+            }
+        }
+    }
+}
+
+fn get_remote_addr<T>(request: &http::Request<T>) -> String {
+    request
+        .extensions()
+        .get::<TcpConnectInfo>()
+        .and_then(|i| i.remote_addr())
+        .or_else(|| {
+            request
+                .extensions()
+                .get::<TlsConnectInfo<TcpConnectInfo>>()
+                .and_then(|i| i.get_ref().remote_addr())
+        })
+        .map(|addr| addr.to_string())
+        .unwrap_or(UNKNOWN_IP_DEFAULT.to_owned())
+}
+
+```
+
+A few things to note here:
+
+- I'm using a crate named `tonic-middleware` to create this an interceptor. The issue with creating a default `tonic` interceptor or `tower` interceptor is that you can't control which service the interceptor is applied to. This is a problem because we only want to apply this interceptor to certain services and not others.
+- I created a `get_remote_addr` function to get the remote address of the client. Because the `tonic-middleware` crate is expecting a `http::Request` rather than `tonic::Request`, we loose the `tonic::Request::remote_addr()` method used in previous sections.
+- Everything is is almost exactly like before when we verified the refresh token, the only difference is that we're not making any databse calls, and we're passing on the token payload to the next handler after verification with `request.extensions_mut().insert(payload_claims)`.
+
+## Cleaning Up!
+
+First we should update `main.rs` to include a few new things:
+
+```rust
+// src/main.rs
+mod cornucopia;
+mod grpc;
+mod settings;
+mod vendors;
+
+use config::{Config, Environment};
+use deadpool_postgres::Runtime;
+use dotenv::dotenv;
+use grpc::auth::auth_pb::auth_service_server::AuthServiceServer;
+use grpc::auth::interceptor::AuthInterceptor;
+use grpc::auth::AuthServerImpl;
+use grpc::hello::hello_world::greeter_server::GreeterServer;
+use grpc::hello::MyGreeter;
+use pasetors::{
+    keys::{AsymmetricKeyPair, AsymmetricPublicKey, AsymmetricSecretKey},
+    version4::V4,
+};
+use settings::Settings;
+use std::iter::once;
+use tokio::signal::unix::{signal, SignalKind};
+use tokio_postgres::NoTls;
+use tonic::transport::Server;
+use tonic_middleware::InterceptorFor;
+use tower_http::{
+    sensitive_headers::SetSensitiveRequestHeadersLayer,
+    trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
+    LatencyUnit,
+};
+use vendors::TwilioClient;
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    // Load env vars from .env file
+    dotenv().ok();
+
+    // Build configs from the environment
+    let settings: Settings = Config::builder()
+        .add_source(Environment::default().separator("_"))
+        .build()?
+        .try_deserialize()?;
+
+    // Read tracing log level from settings
+    let log_level = settings
+        .app
+        .loglevel
+        .parse()
+        .unwrap_or(tracing::Level::INFO); // default to INFO
+    tracing_subscriber::fmt().with_max_level(log_level).init();
+
+    let postgres_pool = deadpool_postgres::Config {
+        host: Some(settings.postgres.host),
+        port: Some(settings.postgres.port),
+        user: Some(settings.postgres.user),
+        password: Some(settings.postgres.password),
+        dbname: Some(settings.postgres.db),
+        ..Default::default()
+    }
+    .create_pool(Some(Runtime::Tokio1), NoTls)?;
+
+    // Create a signal receiver for SIGINT and SIGTERM for graceful shutdown
+    let mut sigint = signal(SignalKind::interrupt())?;
+    let mut sigterm = signal(SignalKind::terminate())?;
+
+    let twilio_client = TwilioClient::new(
+        settings.twilio.servicesid,
+        settings.twilio.accountsid,
+        settings.twilio.authtoken,
+    );
+
+    let access_secret: AsymmetricSecretKey<V4> =
+        settings.paseto.accesssecret.as_str().try_into()?;
+    let access_token_public_key: AsymmetricPublicKey<V4> = (&access_secret).try_into()?;
+    let refresh_secret: AsymmetricSecretKey<V4> =
+        settings.paseto.refreshsecret.as_str().try_into()?;
+    let auth = AuthServerImpl {
+        postgres_pool: postgres_pool.clone(),
+        twilio_client,
+        token_issuer: settings.paseto.issuer.clone(),
+        access_token_key_pair: AsymmetricKeyPair {
+            public: access_token_public_key.clone(),
+            secret: access_secret,
+        },
+        access_token_expiration: settings.paseto.accessexpiry.into(),
+        refresh_token_key_pair: AsymmetricKeyPair {
+            public: (&refresh_secret).try_into()?,
+            secret: refresh_secret,
+        },
+        refresh_token_expiration: settings.paseto.refreshexpiry.into(),
+    };
+
+    let addr = format!("[::]:{}", settings.app.port).parse()?;
+    tracing::info!("Listening on {}", addr);
+    Server::builder()
+        // Mark the `Authorization` request header as sensitive so it doesn't show in logs
+        .layer(SetSensitiveRequestHeadersLayer::new(once(
+            http::header::AUTHORIZATION,
+        )))
+        .layer(
+            // Request and response logging middleware
+            TraceLayer::new_for_http()
+                .make_span_with(
+                    DefaultMakeSpan::new()
+                        .level(log_level)
+                        .include_headers(true),
+                )
+                .on_request(DefaultOnRequest::new().level(log_level))
+                .on_response(
+                    DefaultOnResponse::new()
+                        .level(log_level)
+                        .include_headers(true)
+                        .latency_unit(LatencyUnit::Millis),
+                ),
+        )
+        .trace_fn(|_| tracing::info_span!("boop-platform"))
+        .add_service(AuthServiceServer::new(auth))
+        .add_service(InterceptorFor::new(
+            GreeterServer::new(MyGreeter {}),
+            AuthInterceptor {
+                token_issuer: settings.paseto.issuer.clone(),
+                access_token_public_key: access_token_public_key.clone(),
+            },
+        ))
+        .serve_with_shutdown(addr, async move {
+            // Listen for SIGINT and SIGTERM signals
+            tokio::select! {
+                _ = sigint.recv() => tracing::warn!("[SIGINT] Shutting down..."),
+                _ = sigterm.recv() => tracing::warn!("[SIGTERM] Shutting down...")
+            }
+        })
+        .await?;
+
+    Ok(())
+}
+
+```
+
+1. We added the initialization of the `Twilio` client.
+2. We added parsing of the `paseto` secret keys (we'll cover how to generate them in a bit).
+3. We added the `AuthInterceptor` to a gRPC service named `MyGreeter` to test it out. This `MyGreeter` service is just the dummy `hello-world` service.
+
+### Trying out the auth interceptor
+
+This is self-explanatory:
+
+```proto
+// proto/hello.proto
+syntax = "proto3";
+
+package helloworld;
+
+service Greeter {
+  rpc SayHello (HelloRequest) returns (HelloReply) {}
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}
+```
+
+The implementation:
+
+```rust
+// src/grpc/hello.rs
+pub mod hello_world {
+    tonic::include_proto!("helloworld");
+}
+
+use hello_world::greeter_server::Greeter;
+use hello_world::{HelloReply, HelloRequest};
+use pasetors::claims::Claims;
+use tonic::{Request, Response, Status};
+
+pub struct MyGreeter {
+}
+
+#[tonic::async_trait]
+impl Greeter for MyGreeter {
+    async fn say_hello(
+        &self,
+        request: Request<HelloRequest>,
+    ) -> Result<Response<HelloReply>, Status> {
+        tracing::info!(
+            "Request Extension Claims {:?}",
+            request.extensions().get::<Claims>()
+        );
+        let reply = hello_world::HelloReply {
+            message: format!("Hello {:#?}!", request.into_inner().name),
+        };
+        Ok(Response::new(reply))
+    }
+}
+```
+
+Because we're mounted the `AuthInterceptor` on the `MyGreeter` service in `main.rs` with:
+
+```rust
+.add_service(InterceptorFor::new(
+    GreeterServer::new(MyGreeter {}),
+    AuthInterceptor {
+        token_issuer: settings.paseto.issuer.clone(),
+        access_token_public_key: access_token_public_key.clone(),
+    },
+))
+```
+
+The `AuthInterceptor` will intercept all incoming requests to the `MyGreeter` service and validate the `Authorization` header. Hence we can do this inside `say_hello`:
+
+```rust
+tracing::info!(
+    "Request Extension Claims {:?}",
+    request.extensions().get::<Claims>()
+);
+```
+
+### Generating the PASETO secret keys
+
+Generating the PASETO keypairs was quite annoying to figure out so I'm just going to include this snippet here. You can make this into a CLI tool or something:
+
+```rust
+// examples/gen_paseto_v4.rs
+use rusty_paserk::{Key, PlaintextKey, Secret, V4};
+
+fn main() {
+    let secret_key = Key::<V4, Secret>::new_os_random();
+    let public_key = secret_key.public_key();
+
+    let public_key_display = PlaintextKey(public_key);
+    let secret_key_display = PlaintextKey(secret_key);
+
+    println!("################################################################################################################");
+    println!("# Secret Key: {}", secret_key_display);
+    println!("# Public Key: {}", public_key_display);
+    println!("################################################################################################################");
+}
+```
+
+Now after running this, you can replace the secret keys in the `.env` file, but also remember to setup your Twilio account and replace the Twilio credentials.
+
+## Conclusion
+
+Whew that was a lot of work! But we've finally got a working PASETO-based authentication system with Twilio SMS verification. We've also got a working gRPC service with an auth interceptor. This is a good starting point for building a more complex system anywhere you need to authenticate users.
+
+_We didn't cover anything client side in this tutorial, but you can easily test the service with Postman or any other gRPC client._
