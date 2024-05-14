@@ -16,9 +16,9 @@ theme = 'auto'
 homeIntro = true
 homeIntroTitle = 'About me'
 homeIntroContent = """
-I am a software engineer currently working on a project aimed at improving social engagements IRL.
+Hi I'm Ben. I write code and stuff...
 
-Not particularly into blogging but I guess I should leave something here.
+Email me at bli.dev.073[AT]gmail[DOT]com
 """
 
 # Collection to display on home
